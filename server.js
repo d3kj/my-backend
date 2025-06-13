@@ -1,106 +1,85 @@
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const bcrypt = require('bcrypt');
-
-const app = express();
-const PORT = process.env.PORT || 3111;
-
-app.use(cors({
-  origin: 'https://lolak.netlify.app' // your frontend URL
-}));
-
-app.use(express.json());
-
-const USERS_FILE = path.join(__dirname, 'users.json');
-const KEYS_FILE = path.join(__dirname, 'keys.txt');  // list of valid keys (one per line)
-const USED_KEYS_FILE = path.join(__dirname, 'usedKeys.json');
-
-// Load users from file or initialize empty object
-function loadUsers() {
-  if (!fs.existsSync(USERS_FILE)) return {};
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-}
-// Save users to file
-function saveUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+function showForm(form) {
+  document.getElementById('login-form').classList.remove('active');
+  document.getElementById('signup-form').classList.remove('active');
+  document.getElementById(`${form}-form`).classList.add('active');
+  document.getElementById('form-title').textContent = form === 'login' ? 'Login' : 'Sign Up';
 }
 
-// Load used keys or initialize empty array
-function loadUsedKeys() {
-  if (!fs.existsSync(USED_KEYS_FILE)) return [];
-  return JSON.parse(fs.readFileSync(USED_KEYS_FILE, 'utf8'));
-}
-// Save used keys
-function saveUsedKeys(keys) {
-  fs.writeFileSync(USED_KEYS_FILE, JSON.stringify(keys, null, 2));
-}
+async function login(event) {
+  event.preventDefault();
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value.trim();
 
-// Load valid keys once at server start
-const validKeys = fs.existsSync(KEYS_FILE) ? 
-  fs.readFileSync(KEYS_FILE, 'utf8').split('\n').map(k => k.trim()).filter(k => k) : [];
-
-app.post('/signup', async (req, res) => {
-  const { username, password, key } = req.body;
-
-  if (!username || !password || !key) {
-    return res.status(400).json({ error: 'Username, password and key required' });
-  }
-
-  if (!validKeys.includes(key)) {
-    return res.status(400).json({ error: 'Invalid signup key' });
-  }
-
-  const usedKeys = loadUsedKeys();
-  if (usedKeys.includes(key)) {
-    return res.status(400).json({ error: 'Signup key already used' });
-  }
-
-  let users = loadUsers();
-  if (users[username]) {
-    return res.status(400).json({ error: 'Username already taken' });
+  if (!user || !pass) {
+    alert("Please enter both username and password.");
+    return;
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    users[username] = { password: hashedPassword };
-    saveUsers(users);
+    const response = await fetch('https://my-backend-km6v.onrender.com/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
 
-    usedKeys.push(key);
-    saveUsedKeys(usedKeys);
+    const data = await response.json();
 
-    return res.json({ message: 'Signup successful' });
-  } catch (err) {
-    console.error('Signup error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password required' });
-  }
-
-  const users = loadUsers();
-  if (!users[username]) {
-    return res.status(400).json({ error: 'Invalid username or password' });
-  }
-
-  try {
-    const match = await bcrypt.compare(password, users[username].password);
-    if (!match) {
-      return res.status(400).json({ error: 'Invalid username or password' });
+    if (data.success) {
+      sessionStorage.setItem('loggedInUser', user);
+      window.location.href = "dashboard.html";
+    } else {
+      alert(data.message || "Invalid username or password.");
     }
-    return res.json({ message: 'Login successful' });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ error: 'Internal server error' });
+    alert("Error connecting to server. Please try again later.");
+    console.error(err);
   }
-});
+}
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+async function signup(event) {
+  event.preventDefault();
+  const user = document.getElementById('signup-user').value.trim();
+  const pass = document.getElementById('signup-pass').value.trim();
+  const key = document.getElementById('signup-key').value.trim();
+
+  if (!user || !pass || !key) {
+    alert("Please fill out all fields.");
+    return;
+  }
+
+  try {
+    const response = await fetch('https://my-backend-km6v.onrender.com/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass, key: key })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      alert("Account created successfully. Please log in.");
+      showForm('login');
+    } else {
+      alert(data.message || "Signup failed.");
+    }
+  } catch (err) {
+    alert("Error connecting to server. Please try again later.");
+    console.error(err);
+  }
+}
+
+function createDots() {
+  const container = document.getElementById('dots-container');
+  for (let i = 0; i < 60; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.top = `${Math.random() * 100}vh`;
+    dot.style.left = `${Math.random() * 100}vw`;
+    dot.style.animationDuration = `${Math.random() * 5 + 5}s`;
+    container.appendChild(dot);
+  }
+}
+
+window.onload = () => {
+  createDots();
+};
